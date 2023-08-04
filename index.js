@@ -238,6 +238,33 @@ async function run() {
         })
 
 
+        app.get('/admin-stats', verifyJWT, verifyAdmin, async (req, res) => {
+            const users = await usersCollection.estimatedDocumentCount();
+            const products = await menuCollection.estimatedDocumentCount();
+            const orders = await paymentCollection.estimatedDocumentCount();
+
+            //best way to get sum of the price filed is to use group and sum operator
+            // paymentCollection.aggregate([
+            //     {
+            //         $group: {
+            //             _id: null,
+            //             total: { $sum: '$price' }
+            //         }
+            //     }
+            // ]).toArray()
+
+            const payments = await paymentCollection.find().toArray();
+            const revenue = payments.reduce((sum, payment) => sum + payment.price, 0)
+
+            res.send({
+                revenue,
+                users,
+                products,
+                orders
+            })
+        })
+
+
         // Send a ping to confirm a successful connection
         await client.db("admin").command({ ping: 1 });
         console.log("Pinged your deployment. You successfully connected to MongoDB!");
