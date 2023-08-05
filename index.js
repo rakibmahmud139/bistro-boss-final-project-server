@@ -213,7 +213,7 @@ async function run() {
         //Create payment intent
         app.post('/create-payment-intent', verifyJWT, async (req, res) => {
             const { price } = req.body;
-            const amount = price * 100;
+            const amount = parseInt(price * 100);
             const paymentIntent = await stripe.paymentIntents.create({
                 amount: amount,
                 currency: 'usd',
@@ -238,6 +238,7 @@ async function run() {
         })
 
 
+        //admin API
         app.get('/admin-stats', verifyJWT, verifyAdmin, async (req, res) => {
             const users = await usersCollection.estimatedDocumentCount();
             const products = await menuCollection.estimatedDocumentCount();
@@ -262,6 +263,44 @@ async function run() {
                 products,
                 orders
             })
+        })
+
+        /**
+         * ----------------------------------------------------
+         *      Bangla System (second best solution)
+         * ----------------------------------------------------
+         * 1. Load all payments
+         * 2. for each items payment , get the items array
+         * 3. for each item in the menuItems array get the menuItem from the menuCollection
+         * 4. put them in an array: allOrderedItem 
+         * 5. separate allOrderItem by category using filter
+         * 6. now get the quantity by using length: pizzas.length
+         * 7. for each category use reduce to get the total amount spent on this category
+        */
+        //Order Stat
+        app.get('/order-stats', async (req, res) => {
+            const pipeline = [
+                {
+                    $lookup: {
+                        from: 'menu',
+                        localField: 'menuItems',
+                        foreignField: '_id',
+                        as: 'menuItemsData'
+                    }
+                },
+                { $unwind: '$menuItemsData' },
+                {
+                    $group: {
+                        _id: '$menuItemsData.category',
+                        count: { $sum: 1 },
+                        totalPrice: { $sum: '$menuItemsData.price' }
+                    }
+                }
+            ];
+
+            const result = await paymentCollection.aggregate(pipeline).toArray();
+            res.send(result);
+
         })
 
 
