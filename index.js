@@ -2,6 +2,8 @@ const express = require('express');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
+const nodemailer = require("nodemailer");
+const mg = require('nodemailer-mailgun-transport');
 require('dotenv').config();
 const app = express();
 const stripe = require('stripe')(process.env.PAYMENT_SECRET_KEY)
@@ -13,6 +15,48 @@ const port = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json());
 
+
+// let transporter = nodemailer.createTransport({
+//     host: 'smtp.sendgrid.net',
+//     port: 587,
+//     auth: {
+//         user: "apikey",
+//         pass: process.env.SENDGRID_API_KEY
+//     }
+// })
+
+const auth = {
+    auth: {
+        api_key: process.env.EMAIL_PRIVATE_KEY,
+        domain: process.env.EMAIL_DOMAIN
+    }
+}
+
+const transporter = nodemailer.createTransport(mg(auth));
+
+
+
+//send payment confirmation email
+const sendPaymentConfirmationEmail = payment => {
+    transporter.sendMail({
+        from: "hasansaikat74@gmail.com", // verified sender email
+        to: "hasansaikat74@gmail.com", // recipient email
+        subject: "Your Order is confirm. enjoy the food", // Subject line
+        text: "Hello world!", // plain text body
+        html: `
+        <div>
+        <h3>Payment Confirmed</h3>
+        <p> Transaction IF : ${payment.transactionId}</p>
+        </div>
+        `, // html body
+    }, function (error, info) {
+        if (error) {
+            console.log(error);
+        } else {
+            console.log('Email sent: ' + info.response);
+        }
+    });
+}
 
 
 const verifyJWT = (req, res, next) => {
@@ -234,8 +278,13 @@ async function run() {
             const query = { _id: { $in: payment.cartItems.map(id => new ObjectId(id)) } };
             const deleteResult = await cartCollection.deleteMany(query);
 
+            //send an email confirming payment
+            sendPaymentConfirmationEmail(payment);
+
             res.send({ insertResult, deleteResult });
         })
+
+
 
 
         //admin API
